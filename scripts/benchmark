@@ -1,0 +1,191 @@
+#!/usr/bin/env python
+
+import os
+import time
+import random
+import shelve
+import functools
+from optparse import OptionParser
+
+from texttable import Texttable
+
+import lruset
+import clruset
+
+NUM_ITERATIONS = 10
+ALL = [clruset.LRUSet, lruset.LRUSet]
+
+
+class BenchmarkResult(object):
+    def __init__(self, name, module, cls, size, iters, best):
+        self.name = name
+        self.module = module
+        self.cls = cls
+        self.size = size
+        self.iters = iters
+        self.best = best
+
+    @property
+    def key(self):
+        return '%s-%s-%s-%s' % (self.name, self.module, self.cls, self.size)
+
+    @property
+    def value(self):
+        return {'iters': self.iters,
+                'best_time': self.best}
+
+    def __str__(self):
+        return "%s(%s.%s, max_size=%s), best of %s: %.4f" \
+            % (self.name, self.module, self.cls,
+               self.size, self.iters, self.best)
+
+
+def timeit(func):
+    @functools.wraps(func)
+    def _timed(cls, max_size):
+        times_msec = []
+        for i in xrange(NUM_ITERATIONS):
+            start = time.time()
+            func(cls, max_size)
+            times_msec.append((time.time() - start) * 1000)
+        result = BenchmarkResult(
+            name=func.__name__,
+            module=cls.__module__,
+            cls=cls.__name__,
+            size=max_size,
+            iters=NUM_ITERATIONS,
+            best=min(times_msec)
+        )
+        return result
+    return _timed
+
+
+@timeit
+def ten_times_max_size_sequential(cls, max_size):
+    s = cls(max_size=max_size)
+    for i in xrange(max_size * 10):
+        i = str(i)
+        s.add(i)
+
+
+@timeit
+def insert_then_reverse_contains(cls, max_size):
+    s = cls(max_size=max_size)
+    for i in xrange(max_size):
+        i = str(i)
+        s.add(i)
+    for i in reversed(xrange(max_size)):
+        i = str(i)
+        i in s
+
+
+@timeit
+def insert_then_non_element_contains(cls, max_size):
+    s = cls(max_size=max_size)
+    for i in xrange(max_size):
+        i = str(i)
+        s.add(i)
+    for i in xrange(max_size + 1, 2 * max_size):
+        i = str(i)
+        i in s
+
+
+@timeit
+def add_then_remove(cls, max_size):
+    s = cls(max_size=max_size)
+    for i in xrange(max_size):
+        i = str(i)
+        s.add(i)
+    for i in xrange(max_size):
+        i = str(i)
+        s.remove(i)
+
+
+@timeit
+def random_access(cls, max_size):
+    s = cls(max_size=max_size)
+    for i in xrange(max_size):
+        i = str(i)
+        s.add(i)
+    for i in xrange(10 * max_size):
+        str(random.randint(1, max_size)) in s
+
+
+@timeit
+def gaussian_access(cls, max_size):
+    s = cls(max_size=max_size)
+    for i in xrange(max_size):
+        i = str(i)
+        s.add(i)
+    peak = random.randint(1, max_size)
+    spread = int(max_size * 0.01)
+    gauss = random.gauss
+    int_ = int
+    for i in xrange(10 * max_size):
+        str(int_(gauss(peak, spread))) in s
+
+
+def parse_implementations(impls):
+    if not impls:
+        return ALL
+    else:
+        classes = []
+        for impl in impls:
+            mod_name, cls = impl.rsplit('.', 1)
+            mod = __import__(mod_name)
+            classes.append(getattr(mod, cls))
+        return classes
+
+
+def main():
+    parser = OptionParser()
+    parser.add_option('-i', '--implementations', action="append", default=[])
+    parser.add_option('-n', '--name', help="A name for the current benchmark.")
+    parser.add_option('-c', '--compare', action="store_true", help="Compare benchmarks")
+    parser.add_option('--no-record', action="store_true",
+                      help="Don't record the results in the DB file.")
+    opts, args = parser.parse_args()
+    if opts.compare:
+        b = shelve.open(os.path.join(os.path.dirname(__file__),
+                                         'benchmarks.db'), 'c')
+        keys = [b[name] for name in args]
+        data = [['name'] + args]
+        for key in zip(*keys):
+            data.append([b[key[0]].key] + ['%.4f' % b[k].best for k in key])
+        table = Texttable(max_width=120)
+        table.add_rows(data)
+        print table.draw()
+        return
+    if not opts.name:
+        parser.error("Must supply a name.")
+
+    classes = parse_implementations(opts.implementations)
+    benchmarks = [
+        ten_times_max_size_sequential, insert_then_reverse_contains,
+        insert_then_non_element_contains, add_then_remove,
+        random_access, gaussian_access]
+    if opts.no_record:
+        shelf = {}
+    else:
+        shelf = shelve.open(os.path.join(os.path.dirname(__file__),
+                                         'benchmarks.db'), 'c')
+    name = opts.name
+    shelf[name] = []
+    try:
+        for benchmark in benchmarks:
+            for max_size in [100, 1000, 10000]:
+                for cls in classes:
+                    result = benchmark(cls, max_size=max_size)
+                    print str(result)
+                    key = '%s-%s' % (name, result.key)
+                    shelf[key] = result
+                    benchmark_keys = shelf[name]
+                    benchmark_keys.append(key)
+                    shelf[name] = benchmark_keys
+    finally:
+        if hasattr(shelf, 'close'):
+            shelf.close()
+
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,21 @@
+#!/usr/bin/env python
+
+from clruset import LRUSet
+
+# Basically run this script and watch memory usage.
+# If it grows over time, you have a memory leak.
+# You can use the pure python version for comparison.
+
+SIZE = 100000
+l = LRUSet(SIZE)
+
+import os; print os.getpid()
+while True:
+    for i in xrange(SIZE):
+        l.add(i)
+    for i in xrange(SIZE):
+        i in l
+    for i in xrange(SIZE):
+        l.remove(i)
+    for i in xrange(SIZE):
+        i in l
