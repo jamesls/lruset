@@ -9,11 +9,8 @@ from optparse import OptionParser
 
 from texttable import Texttable
 
-import lruset
-import clruset
 
 NUM_ITERATIONS = 10
-ALL = [clruset.LRUSet, lruset.LRUSet]
 
 
 class BenchmarkResult(object):
@@ -126,15 +123,12 @@ def gaussian_access(cls, max_size):
 
 
 def parse_implementations(impls):
-    if not impls:
-        return ALL
-    else:
-        classes = []
-        for impl in impls:
-            mod_name, cls = impl.rsplit('.', 1)
-            mod = __import__(mod_name)
-            classes.append(getattr(mod, cls))
-        return classes
+    classes = []
+    for impl in impls:
+        mod_name, cls = impl.rsplit('.', 1)
+        mod = __import__(mod_name)
+        classes.append(getattr(mod, cls))
+    return classes
 
 
 def main():
