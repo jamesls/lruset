@@ -219,9 +219,7 @@ lruset_seq_contains(PyObject *op, PyObject *key)
         }
     }
     lrusetnode *node = &self->nodes[index];
-    if (self->head == node) {
-        // Nothing to do
-    } else if (self->tail == node) {
+    if (self->tail == node) {
         lrusetnode *new_tail = node->previous;
         node->previous->next = NULL;
         node->previous = NULL;
@@ -230,7 +228,7 @@ lruset_seq_contains(PyObject *op, PyObject *key)
         node->next = self->head;
         self->head = node;
         self->tail = new_tail;
-    } else {
+    } else if (self->head != node) {
         node->previous->next = node->next;
         node->next->previous = node->previous;
         node->next = self->head;
