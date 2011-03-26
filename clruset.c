@@ -68,7 +68,8 @@ lrusetiter_iternext(lrusetiterobject *li)
 }
 
 static PyTypeObject lrusetiter_type = {
-	PyVarObject_HEAD_INIT(&PyType_Type, 0)
+        PyObject_HEAD_INIT(NULL)
+        0,
 	"lrusetiterator",			/* tp_name */
 	sizeof(lrusetiterobject),		/* tp_basicsize */
 	0,					/* tp_itemsize */
