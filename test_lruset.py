@@ -189,13 +189,10 @@ class TestLRUSet(unittest.TestCase):
         s.add(200)
         self.assertEqual(list(iter(s)), [100, 200])
 
-
-class TestCLRUSet(TestLRUSet):
-    def create_set(self, size):
-        return clruset.LRUSet(size)
-
     # There's a few quirky tests we need for the
-    # C version that aren't really applicable for python.
+    # C version that aren't really applicable for python,
+    # but they should both behave the same so we test
+    # both implementations.
     def testIterateEvenAfterSetIsGone(self):
         s = self.create_set(5)
         map(s.add, range(5))
@@ -214,6 +211,11 @@ class TestCLRUSet(TestLRUSet):
         del s
         del ob
         self.assertEqual(id(list(i)[-1]), ob_id)
+
+
+class TestCLRUSet(TestLRUSet):
+    def create_set(self, size):
+        return clruset.LRUSet(size)
 
 
 if __name__ == '__main__':
