@@ -9,7 +9,7 @@ import clruset
 
 class TestLRUSet(unittest.TestCase):
     def create_set(self, size):
-        return clruset.LRUSet(size)
+        return lruset.LRUSet(size)
 
     def testNoElement(self):
         """Check boundary condition for empty set.
@@ -145,14 +145,75 @@ class TestLRUSet(unittest.TestCase):
             s.add(1)
         self.assertEqual(s.current_size, 1)
 
+    def testConstantlyChangingSingleElement(self):
+        s = self.create_set(1)
+        for i in xrange(100):
+            s.add(i)
+
+        self.assertTrue(99 in s)
+
     def testRemoveRaisesKeyError(self):
         s = self.create_set(0)
         self.assertRaises(KeyError, s.remove, 54)
 
+    def testIterateInLRUOrder(self):
+        s = self.create_set(5)
+        for i in xrange(5):
+            s.add(i)
+        0 in s
+        1 in s
+        2 in s
+        self.assertEqual(list(iter(s)), [3, 4, 0, 1, 2])
 
-class TestLRUSetPython(TestLRUSet):
+    def testIterationDoesNotChangeLRU(self):
+        s = self.create_set(5)
+        for i in xrange(5):
+            s.add(i)
+        0 in s
+        # 1 is the LRU element.
+        self.assertEqual(list(iter(s)), [1, 2, 3, 4, 0])
+        s.add(5)
+        self.assertTrue(1 not in s)
+
+    def testIterateEmptySet(self):
+        self.assertEqual(list(iter(self.create_set(0))), [])
+
+    def testIterateOnlyHeadPopulated(self):
+        s = self.create_set(1)
+        s.add(100)
+        self.assertEqual(list(iter(s)), [100])
+
+    def testIterateHeadAndTailOnlyPopulated(self):
+        s = self.create_set(2)
+        s.add(100)
+        s.add(200)
+        self.assertEqual(list(iter(s)), [100, 200])
+
+
+class TestCLRUSet(TestLRUSet):
     def create_set(self, size):
-        return lruset.LRUSet(size)
+        return clruset.LRUSet(size)
+
+    # There's a few quirky tests we need for the
+    # C version that aren't really applicable for python.
+    def testIterateEvenAfterSetIsGone(self):
+        s = self.create_set(5)
+        map(s.add, range(5))
+        i = iter(s)
+        del s
+        # Should still be able to iterate use the set using i.
+        self.assertEqual(list(i), range(5))
+
+    def testObjectReferencesAreHeld(self):
+        ob = object()
+        ob_id = id(ob)
+        s = self.create_set(5)
+        map(s.add, range(5))
+        s.add(ob)
+        i = iter(s)
+        del s
+        del ob
+        self.assertEqual(id(list(i)[-1]), ob_id)
 
 
 if __name__ == '__main__':

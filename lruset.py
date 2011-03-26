@@ -80,3 +80,10 @@ class LRUSet(object):
 
     def __len__(self):
         return self.current_size
+
+    def __iter__(self):
+        current = self.head
+        while current is not None:
+            yield current.value
+            current = current.next
+

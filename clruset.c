@@ -38,6 +38,84 @@ set_key_error(PyObject *arg)
     Py_DECREF(tup);
 }
 
+
+/* Iterator object for LRUSet */
+typedef struct {
+	PyObject_HEAD
+	lrusetobject *lruset_ob;
+	lrusetnode *li_current;
+} lrusetiterobject;
+
+
+static void
+lrusetiter_dealloc(lrusetiterobject *li)
+{
+	Py_DECREF(li->lruset_ob);
+	PyObject_Del(li);
+}
+
+static PyObject *
+lrusetiter_iternext(lrusetiterobject *li)
+{
+	if (li->li_current == NULL) {
+		/* Iteration is finished */
+		return NULL;
+	}
+	lrusetnode *current = li->li_current;
+	li->li_current = current->next;
+	Py_INCREF(current->data);
+	return current->data;
+}
+
+static PyTypeObject lrusetiter_type = {
+	PyVarObject_HEAD_INIT(&PyType_Type, 0)
+	"lrusetiterator",			/* tp_name */
+	sizeof(lrusetiterobject),		/* tp_basicsize */
+	0,					/* tp_itemsize */
+	/* methods */
+	(destructor)lrusetiter_dealloc, 		/* tp_dealloc */
+	0,					/* tp_print */
+	0,					/* tp_getattr */
+	0,					/* tp_setattr */
+	0,					/* tp_compare */
+	0,					/* tp_repr */
+	0,					/* tp_as_number */
+	0,					/* tp_as_sequence */
+	0,					/* tp_as_mapping */
+	0,					/* tp_hash */
+	0,					/* tp_call */
+	0,					/* tp_str */
+	PyObject_GenericGetAttr,		/* tp_getattro */
+	0,					/* tp_setattro */
+	0,					/* tp_as_buffer */
+	Py_TPFLAGS_DEFAULT,			/* tp_flags */
+ 	0,					/* tp_doc */
+ 	0,					/* tp_traverse */
+ 	0,					/* tp_clear */
+	0,					/* tp_richcompare */
+	0,					/* tp_weaklistoffset */
+	PyObject_SelfIter,			/* tp_iter */
+	(iternextfunc)lrusetiter_iternext,	/* tp_iternext */
+	0,					/* tp_methods */
+	0,
+};
+
+static PyObject *
+lruset_iter(lrusetobject *l)
+{
+	lrusetiterobject *li = PyObject_New(lrusetiterobject, &lrusetiter_type);
+	if (li == NULL)
+		return NULL;
+	li->li_current = NULL;
+	Py_INCREF(l);
+	li->lruset_ob = l;
+	if (l->head != NULL) {
+		li->li_current = l->head;
+	}
+	return (PyObject *)li;
+}
+
+
 static int
 lruset_init(lrusetobject *self, PyObject *args, PyObject *kwds)
 {
@@ -107,17 +185,26 @@ lruset_add(lrusetobject *self, PyObject *item)
     }
     lrusetnode *node;
     if (self->current_size >= self->max_size) {
-        node = self->tail;
-        self->tail = node->previous;
-        self->tail->next = NULL;
-        node->previous = NULL;
+        /* We need to remove the LRU element and reuse
+	 * that node for the new item we'd like to insert,
+	 * however if the maximum size is only 1, we just
+	 * reuse the head node.
+	 **/
+        node = self->head;
+	if (self->max_size > 1) {
+            self->head = node->next;
+	    self->head->previous = NULL;
+            node->next = NULL;
+	} else {
+            self->head = NULL;
+	}
         if (PyDict_DelItem(self->lookup, node->data) < 0) {
             return NULL;
-	}
+        }
         Py_DECREF(node->data);
         node->data = NULL;
         assert(node->index != -1);
-	self->current_size--;
+        self->current_size--;
     } else {
         assert(self->free_index >= 0);
         node = &self->nodes[self->free_index];
@@ -137,17 +224,17 @@ lruset_add(lrusetobject *self, PyObject *item)
     }
     /* Transfer ownership to the lookup dict. */
     Py_DECREF(py_index);
-    /* Add the node to the front of the list. */
+    /* Add the node to the end of the list. */
     if (self->head != NULL && self->tail != NULL) {
-        node->next = self->head;
-        self->head->previous = node;
-        self->head = node;
+        node->previous = self->tail;
+        self->tail->next = node;
+        self->tail = node;
     } else if (self->tail == NULL && self->head != NULL) {
         assert(self->current_size == 1);
-        self->head->previous = node;
-        node->next = self->head;
+        self->head->next = node;
+        node->previous = self->head;
         self->tail = self->head;
-        self->head = node;
+        self->tail = node;
     } else if (self->head == NULL) {
         assert(self->current_size == 0);
         self->head = node;
@@ -179,6 +266,9 @@ lruset_remove(lrusetobject *self, PyObject *item)
         self->head = node->next;
         node->next->previous = NULL;
         node->next = NULL;
+	if (self->head == self->tail) {
+            self->tail = NULL;
+	}
     } else if (self->tail == node) {
         if (node->previous != self->head) {
             self->tail = node->previous;
@@ -200,6 +290,10 @@ lruset_remove(lrusetobject *self, PyObject *item)
     node->index = -1;
     Py_DECREF(node->data);
     node->data = NULL;
+    assert(node->data == NULL);
+    assert(node->previous == NULL);
+    assert(node->next == NULL);
+    assert(node->index == -1);
     Py_RETURN_NONE;
 }
 
@@ -219,22 +313,26 @@ lruset_seq_contains(PyObject *op, PyObject *key)
         }
     }
     lrusetnode *node = &self->nodes[index];
-    if (self->tail == node) {
-        lrusetnode *new_tail = node->previous;
-        node->previous->next = NULL;
-        node->previous = NULL;
-        assert(self->head->previous == NULL);
-        self->head->previous = node;
-        node->next = self->head;
-        self->head = node;
-        self->tail = new_tail;
-    } else if (self->head != node) {
+    /* Move node to the end of the list */
+    if ((self->head == node && self->tail == NULL) ||
+        self->tail == node) {
+        /* Do nothing */
+    } else if (self->head == node) {
+        lrusetnode *new_head = self->head->next;
+	assert(new_head != NULL);
+	node->next = NULL;
+	new_head->previous = NULL;
+	self->head = new_head;
+	self->tail->next = node;
+	node->previous = self->tail;
+	self->tail = node;
+    } else {
         node->previous->next = node->next;
-        node->next->previous = node->previous;
-        node->next = self->head;
-        node->previous = NULL;
-        self->head->previous = node;
-        self->head = node;
+	node->next->previous = node->previous;
+	node->previous = self->tail;
+	node->next = NULL;
+	self->tail->next = node;
+	self->tail = node;
     }
     return 1;
 }
@@ -301,7 +399,7 @@ static PyTypeObject lruset_type = {
     0,              /* tp_clear */
     0,              /* tp_richcompare */
     0,              /* tp_weaklistoffset*/
-    0,              /* tp_iter */
+    (getiterfunc)lruset_iter,             /* tp_iter */
     0,              /* tp_iternext */
     lruset_methods,         /* tp_methods */
     lruset_members,         /* tp_members */
@@ -316,6 +414,7 @@ static PyTypeObject lruset_type = {
     PyType_GenericNew,          /* tp_new */
     0,              /* tp_free */
 };
+
 
 
 PyMODINIT_FUNC
