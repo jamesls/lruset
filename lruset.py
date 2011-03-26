@@ -4,13 +4,13 @@ This module implements a Least Recently Used bounded set.
 """
 
 
-class Node(object):
+class _Node(object):
     __slots__ = ('value', 'previous', 'next')
     # For use as a doubly linked list.
-    def __init__(self, value, previous=None, next=None):
+    def __init__(self, value, previous_node=None, next_node=None):
         self.value = value
-        self.previous = previous
-        self.next = next
+        self.previous = previous_node
+        self.next = next_node
 
 
 class LRUSet(object):
@@ -39,7 +39,7 @@ class LRUSet(object):
         # 'item in self'
         if self.__contains__(item):
             return
-        node = Node(item, previous=self.tail)
+        node = _Node(item, previous_node=self.tail)
         self.lookup_table[item] = node
         self.current_size += 1
         # If this is the first time an item is being
@@ -86,4 +86,3 @@ class LRUSet(object):
         while current is not None:
             yield current.value
             current = current.next
-
