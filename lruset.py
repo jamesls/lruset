@@ -20,12 +20,12 @@ class LRUSet(object):
     def __init__(self, max_size):
         self.max_size = max_size
         self.current_size = 0
-        self.lookup_table = {}
-        self.head = None
-        self.tail = None
+        self._lookup_table = {}
+        self._head = None
+        self._tail = None
 
     def __contains__(self, item):
-        if item in self.lookup_table:
+        if item in self._lookup_table:
             # Remove it from its current position and
             # add it to the end of the list.
             self.remove(item)
@@ -39,50 +39,50 @@ class LRUSet(object):
         # 'item in self'
         if self.__contains__(item):
             return
-        node = _Node(item, previous_node=self.tail)
-        self.lookup_table[item] = node
+        node = _Node(item, previous_node=self._tail)
+        self._lookup_table[item] = node
         self.current_size += 1
         # If this is the first time an item is being
         # added, the head reference needs to be set.
-        if self.head is None:
-            self.head = node
+        if self._head is None:
+            self._head = node
             node.previous = None
         # If this is the second time an item is being
         # added, the tail reference needs to be set.
-        elif self.tail is None:
-            self.head.next = node
-            node.previous = self.head
-            self.tail = node
+        elif self._tail is None:
+            self._head.next = node
+            node.previous = self._head
+            self._tail = node
         # From the third item and onwards, simply
         # add the item to the end of the list.
         else:
-            self.tail.next = node
-            self.tail = node
+            self._tail.next = node
+            self._tail = node
         if self.current_size > self.max_size:
             # The head reference is always the least
             # recently used.
-            self.remove(self.head.value)
+            self.remove(self._head.value)
 
     def remove(self, item):
-        node = self.lookup_table[item]
+        node = self._lookup_table[item]
         # Again, there is the need to special case if its
         # either the head or tail reference that is going to
         # be removed.
-        if node is self.head:
-            self.head = node.next
-        elif node is self.tail:
-            self.tail = node.previous
+        if node is self._head:
+            self._head = node.next
+        elif node is self._tail:
+            self._tail = node.previous
         else:
             node.previous.next = node.next
             node.next.previous = node.previous
-        del self.lookup_table[item]
+        del self._lookup_table[item]
         self.current_size -= 1
 
     def __len__(self):
         return self.current_size
 
     def __iter__(self):
-        current = self.head
+        current = self._head
         while current is not None:
             yield current.value
             current = current.next

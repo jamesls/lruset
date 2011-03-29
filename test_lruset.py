@@ -17,6 +17,10 @@ class TestLRUSet(unittest.TestCase):
         s = self.create_set(0)
         self.assertEqual(len(s), 0)
 
+    def testMaxSizeAttribute(self):
+        s = self.create_set(100)
+        self.assertEqual(s.max_size, 100)
+
     def testSingleElement(self):
         """Check boundary condition for a single element.
         """
