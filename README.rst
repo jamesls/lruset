@@ -6,6 +6,10 @@ as well as checking the set for membership.
 
 Currently all that's supported is ``add``, ``remove``, ``__contains__``,
 and ``__iter__``.
+
+There is currently no plans to support creating new sets from existing
+LRUSets (union, intersection, difference, etc.)
+
 Example usage::
 
   >>> import clruset
