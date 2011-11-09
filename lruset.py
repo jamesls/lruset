@@ -28,8 +28,18 @@ class LRUSet(object):
         if item in self._lookup_table:
             # Remove it from its current position and
             # add it to the end of the list.
-            self.remove(item)
-            self.add(item)
+            node = self._lookup_table.get(item)
+            if node != self._head and node != self._tail:
+                # We can shortcut the add/remove step
+                # by just moving the node to the end of the
+                # linked list.
+                node.previous.next = node.next
+                node.next.previous = node.previous
+                self._tail.next = node
+                self._tail = node
+            else:
+                self.remove(item)
+                self.add(item)
             return True
         else:
             return False
