@@ -133,8 +133,11 @@ def parse_implementations(impls):
 
 def main():
     parser = OptionParser()
-    parser.add_option('-i', '--implementations', action="append", default=[])
-    parser.add_option('-n', '--name', help="A name for the current benchmark.")
+    parser.add_option('-i', '--implementations', action="append", default=[],
+                      help="A list of implementations to test, e.g "
+                      "lruset.LRUSet or clruset.LRUSet")
+    parser.add_option('-n', '--name', help="A name for the current benchmark "
+                      "(required).")
     parser.add_option('-c', '--compare', action="store_true", help="Compare benchmarks")
     parser.add_option('--no-record', action="store_true",
                       help="Don't record the results in the DB file.")
