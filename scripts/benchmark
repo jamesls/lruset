@@ -11,6 +11,7 @@ from texttable import Texttable
 
 
 NUM_ITERATIONS = 10
+random.seed(54)
 
 
 class BenchmarkResult(object):
