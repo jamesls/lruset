@@ -197,23 +197,23 @@ lruset_add(lrusetobject *self, PyObject *item)
         self->head->previous = NULL;
             node->next = NULL;
     } else {
-            self->head = NULL;
+        self->head = NULL;
     }
-        if (PyDict_DelItem(self->lookup, node->data) < 0) {
-            return NULL;
-        }
-        Py_DECREF(node->data);
-        node->data = NULL;
-        assert(node->index != -1);
-        self->current_size--;
+    if (PyDict_DelItem(self->lookup, node->data) < 0) {
+        return NULL;
+    }
+    Py_DECREF(node->data);
+    node->data = NULL;
+    assert(node->index != -1);
+    self->current_size--;
     } else {
         assert(self->free_index >= 0);
         node = &self->nodes[self->free_index];
-    /* Verify the node is properly "uninitialized" */
-    assert(node->data == NULL);
-    assert(node->index == -1);
-    assert(node->next == NULL);
-    assert(node->previous == NULL);
+        /* Verify the node is properly "uninitialized" */
+        assert(node->data == NULL);
+        assert(node->index == -1);
+        assert(node->next == NULL);
+        assert(node->previous == NULL);
         node->index = self->free_index--;
     }
     node->data = item;
@@ -268,7 +268,7 @@ lruset_remove(lrusetobject *self, PyObject *item)
         node->next->previous = NULL;
         node->next = NULL;
     if (self->head == self->tail) {
-            self->tail = NULL;
+        self->tail = NULL;
     }
     } else if (self->tail == node) {
         if (node->previous != self->head) {
@@ -320,20 +320,20 @@ lruset_seq_contains(PyObject *op, PyObject *key)
         /* Do nothing */
     } else if (self->head == node) {
         lrusetnode *new_head = self->head->next;
-    assert(new_head != NULL);
-    node->next = NULL;
-    new_head->previous = NULL;
-    self->head = new_head;
-    self->tail->next = node;
-    node->previous = self->tail;
-    self->tail = node;
+        assert(new_head != NULL);
+        node->next = NULL;
+        new_head->previous = NULL;
+        self->head = new_head;
+        self->tail->next = node;
+        node->previous = self->tail;
+        self->tail = node;
     } else {
         node->previous->next = node->next;
-    node->next->previous = node->previous;
-    node->previous = self->tail;
-    node->next = NULL;
-    self->tail->next = node;
-    self->tail = node;
+        node->next->previous = node->previous;
+        node->previous = self->tail;
+        node->next = NULL;
+        self->tail->next = node;
+        self->tail = node;
     }
     return 1;
 }
